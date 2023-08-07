@@ -32,6 +32,7 @@ function installOperator {
 function createNamespaceAndServiceAccount {
 	kubectl create namespace aerospike
 	kubectl -n aerospike create serviceaccount aerospike-operator-controller-manager
+	kubectl create clusterrolebinding aerospike-cluster --clusterrole=aerospike-cluster --serviceaccount=aerospike:aerospike-operator-controller-manager
 	kubectl patch clusterrolebindings.rbac.authorization.k8s.io $(kubectl get clusterrolebindings.rbac.authorization.k8s.io  | grep aerospike-kubernetes-operator | grep -v -- "-opera-" | grep -v -- "default-ns" | cut -f 1 -d " ") --patch \
 		'{"subjects":[
 		{"kind": "ServiceAccount", "name": "aerospike-operator-controller-manager","namespace":"operators"},
