@@ -9,15 +9,21 @@ function downloadOlm {
 function installOperator {
 	kubectl create -f https://operatorhub.io/install/aerospike-kubernetes-operator.yaml
 	count=0
+	csvStateFinal=""
 	while :
 	do
-		csvState=$(kubectl get csv -n operators --no-headers | awk -F'   ' '{print $6}')
-		if [ "$csvState" = "Succeeded" ]; then
+		csvState=($(kubectl get csv -n operators --no-headers | awk '{print $6, $7}'))
+		if [[ "${csvState[1]}" =~ .*"aerospike-kubernetes-operator".* ]]; then
+			csvStateFinal=${csvState[1]}
+		else
+			csvStateFinal=${csvState[0]}
+		fi
+		if [ "${csvStateFinal}" = "Succeeded" ]; then
 			echo "Operator CSV is installed successfully!"
 			break
 		fi
 		echo "CSV not ready yet... polling..."
-		[ ! -z "$csvState" ] && echo "$csvState"
+		[ ! -z "$csvStateFinal" ] && echo "$csvStateFinal"
 		((count += 1))
 		sleep 3
 
@@ -32,7 +38,6 @@ function installOperator {
 function createNamespaceAndServiceAccount {
 	kubectl create namespace aerospike
 	kubectl -n aerospike create serviceaccount aerospike-operator-controller-manager
-	kubectl create clusterrolebinding aerospike-cluster --clusterrole=aerospike-cluster --serviceaccount=aerospike:aerospike-operator-controller-manager
 	kubectl patch clusterrolebindings.rbac.authorization.k8s.io $(kubectl get clusterrolebindings.rbac.authorization.k8s.io  | grep aerospike-kubernetes-operator | grep -v -- "-opera-" | grep -v -- "default-ns" | cut -f 1 -d " ") --patch \
 		'{"subjects":[
 		{"kind": "ServiceAccount", "name": "aerospike-operator-controller-manager","namespace":"operators"},
