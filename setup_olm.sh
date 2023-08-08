@@ -12,18 +12,13 @@ function installOperator {
 	csvStateFinal=""
 	while :
 	do
-		csvState=($(kubectl get csv -n operators --no-headers | awk '{print $6, $7}'))
-		if [[ "${csvState[1]}" =~ .*"aerospike-kubernetes-operator".* ]]; then
-			csvStateFinal=${csvState[1]}
-		else
-			csvStateFinal=${csvState[0]}
-		fi
-		if [ "${csvStateFinal}" = "Succeeded" ]; then
+		csvState=($(kubectl get csv -n operators --no-headers | awk '{ if (match($6, "aerospike-kubernetes-operator") > 0 ) { print $7 } else { print $6 }}'))
+		if [ "${csvState}" = "Succeeded" ]; then
 			echo "Operator CSV is installed successfully!"
 			break
 		fi
 		echo "CSV not ready yet... polling..."
-		[ ! -z "$csvStateFinal" ] && echo "$csvStateFinal"
+		[ ! -z "$csvState" ] && echo "$csvState"
 		((count += 1))
 		sleep 3
 
