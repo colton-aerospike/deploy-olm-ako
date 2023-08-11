@@ -1,0 +1,106 @@
+apiVersion: asdb.aerospike.com/v1
+kind: AerospikeCluster
+metadata:
+  name: asdb-dev
+  namespace: aerospike
+
+spec:
+  size: 6
+  image: aerospike/aerospike-server-enterprise:6.3.0.4
+
+  storage:
+    filesystemVolumePolicy:
+      initMethod: deleteFiles
+      cascadeDelete: true
+    blockVolumePolicy:
+      cascadeDelete: true
+    volumes:
+      - name: workdir
+        aerospike:
+          path: /opt/aerospike
+        source:
+          persistentVolume:
+            storageClass: gp2 
+            volumeMode: Filesystem 
+            size: 1Gi
+      - name: test
+        aerospike:
+          path: /aerospike/dev/xvdf_test
+        source:
+          persistentVolume:
+            storageClass: openebs-device # local nvme drive attached to k8s node
+            volumeMode: Block 
+            size: 250Gi
+      - name: test-shadow
+        aerospike:
+           path: /aerospike/dev/xvdf_ebs_test
+        source:
+          persistentVolume:
+           storageClass: gp2 # ebs drive
+           volumeMode: Block 
+           size: 300Gi
+      - name: aerospike-config-secret
+        source:
+          secret:
+            secretName: aerospike-secret
+        aerospike:
+          path: /etc/aerospike/secret
+  podSpec:
+    multiPodPerHost: false
+    hostNetwork: true
+    metadata:
+      annotations:
+    sidecars:
+    - name: aerospike-prometheus-exporter
+      image: aerospike/aerospike-prometheus-exporter:latest
+      ports:
+        - containerPort: 9145
+          name: exporter
+      env:
+        - name: "AS_AUTH_USER"
+          value: "admin"
+        - name: "AS_AUTH_PASSWORD"
+          value: "admin123"
+        - name: "AS_AUTH_MODE"
+          value: "internal"
+  rackConfig:
+    namespaces:
+      - test
+    racks:
+      - id: 1
+        zone: us-east-1a
+      - id: 2
+        zone: us-east-1b
+      - id: 3
+        zone: us-east-1c
+  aerospikeAccessControl:
+    users:
+      - name: admin
+        secretName: auth-secret
+        roles:
+          - sys-admin
+          - user-admin
+          - read-write
+
+  aerospikeConfig:
+    service:
+      feature-key-file: /etc/aerospike/secret/features.conf
+    security: {}
+    network:
+      service:
+        port: 3000
+      fabric:
+        port: 3001
+      heartbeat:
+        port: 3002
+    namespaces:
+      - name: test
+        memory-size: 3000000000
+        replication-factor: 2
+        storage-engine:
+          type: device
+          serialize-tomb-raider: false
+          cold-start-empty: false
+          devices:
+            - /aerospike/dev/xvdf_test /aerospike/dev/xvdf_ebs_test
+

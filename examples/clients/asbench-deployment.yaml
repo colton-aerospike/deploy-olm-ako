@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: asbench-deployment
+  labels:
+    app: asbench
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: asbench
+  template:
+    metadata:
+      labels:
+        app: asbench
+    spec:
+      tolerations:
+      - key: app
+        operator: Equal
+        value: astools
+        effect: NoSchedule
+      containers:
+      - name: astools
+        image: aerospike/aerospike-tools:latest
+        imagePullPolicy: Always
+        command: ["/bin/bash", "-c"]
+        args:
+          - asbench -h asdb-dev-1-0.asdb-dev.aerospike -U admin -Padmin123 
+            -n test -s myset --latency -b testbin
+            -K 0 -k 1000000 -z 16 -t 0
+            -o I1,4*S10240 -w I --socket-timeout 200 --timeout 1000 # Insert workload only
+            -B allowReplica --max-retries 2
