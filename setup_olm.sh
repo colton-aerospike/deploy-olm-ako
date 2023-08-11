@@ -3,7 +3,7 @@
 set -e
 
 function downloadOlm {
-	curl -sL https://github.com/operator-framework/operator-lifecycle-manager/releases/download/v0.21.2/install.sh | bash -s "$OLM_VERSION" || exit 1	
+	curl -sL https://github.com/operator-framework/operator-lifecycle-manager/releases/download/"${OLM_VERSION}"/install.sh | bash -s "$OLM_VERSION" || exit 1	
 }
 
 function installOperator {
@@ -46,13 +46,17 @@ function createSecrets {
 	kubectl  -n aerospike create secret generic auth-secret --from-literal=password='admin123'
 }
 
+function deployOpenEBS {
+	kubectl apply -f https://openebs.github.io/charts/openebs-operator.yaml
+}
 
 function usage {
-        echo "Usage: $0 -n CLUSTER_NAME -v K8S_VERSION [-o OLM_VERSION] [ -R ]"
+        echo "Usage: $0 -n CLUSTER_NAME -v K8S_VERSION [-o OLM_VERSION, -E] [ -R ]"
         echo ""
         echo "-n) EKS cluster name to attach to"
         echo "-v) Kubernetes version to use when attaching via gaiakube"
-	echo "-o) OLM version to install: Default v0.21.2"
+	echo "-o) OLM version to install: (Default: v0.25.0)"
+	echo "-E) Install OpenEBS Operator (Default: false)"
 	echo "-R) Run cleanup to remove OLM, operators, and aerospike namespace"
 }
 function exit_abnormal {
@@ -61,17 +65,21 @@ function exit_abnormal {
 }
 
 function parseArgs {
-        while getopts "n:v:oR" options; do
+	while getopts "n:v:o:RE" options; do
                 case "${options}" in
                 n)
-                        CLUSTER_NAME=${OPTARG} # set $NAME to specified value.
+                        CLUSTER_NAME="${OPTARG}" # set $NAME to specified value.
                         ;;
                 v)
                         K8S_VERSION="${OPTARG}"
                         ;;
-		o)	OLM_VERSION="${OPTARG}"
+		o)	
+			OLM_VERSION="${OPTARG}"
 			;;
 		R)	CLEANUP=1
+			;;
+		E)	
+			INSTALL_OPENEBS=1
 			;;
                 :) # If expected argument omitted:
                         echo "Error: -${OPTARG} requires an argument."
@@ -89,6 +97,7 @@ function cleanUp {
 	kubectl delete -f https://github.com/operator-framework/operator-lifecycle-manager/releases/download/${OLM_VERSION}/crds.yaml
 	kubectl delete -f https://github.com/operator-framework/operator-lifecycle-manager/releases/download/${OLM_VERSION}/olm.yaml
 	kubectl delete namespace aerospike
+	kubectl delete clusterrolebinding aerospike-cluster
 	echo "Please verify the olm, operators, and aerospike namespace are deleted"
 	kubectl get namespace	
 	exit 0
@@ -101,6 +110,7 @@ function main {
 	gaiakube "$K8S_VERSION" "$CLUSTER_NAME"
        	[ $? -ne 0 ] && echo "Failed to connect with gaiakube" && exit 5
 	[ $CLEANUP -eq 1 ] && cleanUp
+	[ $INSTALL_OPENEBS -eq 1 ] && deployOpenEBS
 	downloadOlm
 	installOperator
 	createNamespaceAndServiceAccount
@@ -110,8 +120,9 @@ function main {
 
 CLUSTER_NAME=
 K8S_VERSION=
-OLM_VERSION="v0.21.2"
+OLM_VERSION="v0.25.0"
 CLEANUP=0
+INSTALL_OPENEBS=0
 
 main "$@"
 
