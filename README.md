@@ -1,6 +1,11 @@
 # deploy-olm-ako
 Simple bash script to deploy the Aerospike Kubernetes Operator via OLM to a kubenetes cluster
 
+## Installation
+```bash
+git clone https://github.com/colton-aerospike/deploy-olm-ako && cd deploy-olm-ako
+```
+
 ## Usage
 ```bash
 Usage: ./setup_olm.sh -n CLUSTER_NAME -v K8S_VERSION [-o OLM_VERSION, -E] [ -R ]
