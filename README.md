@@ -1,4 +1,4 @@
-# asdb-6.0-storage-change-record-checker
+# deploy-olm-ako
 Simple bash script to deploy the Aerospike Kubernetes Operator via OLM to a kubenetes cluster
 
 ## Usage
