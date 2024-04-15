@@ -1,0 +1,134 @@
+apiVersion: asdb.aerospike.com/v1
+kind: AerospikeCluster
+metadata:
+  name: aerocluster
+  namespace: aerospike
+
+spec:
+  size: 3 
+  image: aerospike/aerospike-server-enterprise:7.0.0.6
+  operatorClientCert:
+    secretCertSource:
+    #caCertsPath: /etc/aerospike-secret/tls/ca.crt
+      caCertsSource:
+        secretName: aerospike-ca-cert
+      secretName: aerospike-client-tls
+      secretNamespace: aerospike
+      #caCertsFilename: ca.crt
+      clientCertFilename: tls.crt
+      clientKeyFilename: tls.key
+      #certChainPath: /etc/aerospike-secret/tls/tls.crt
+      #privateKeyPath: /etc/aerospike-secret/tls/tls.key
+  storage:
+    cleanupThreads: 10
+    filesystemVolumePolicy:
+      initMethod: deleteFiles
+      cascadeDelete: true
+    blockVolumePolicy:
+      cascadeDelete: true
+      initMethod: dd
+    volumes:
+      - name: workdir
+        aerospike:
+          path: /opt/aerospike
+        source:
+          persistentVolume:
+            storageClass: gp2 
+            volumeMode: Filesystem 
+            size: 10Gi
+      - name: aerospike-config-secret
+        source:
+          secret:
+            secretName: aerospike-secret
+        aerospike:
+          path: /etc/aerospike/secret
+      - name: tls
+        source:
+          secret:
+            secretName: aerospike-client-tls
+        aerospike:
+          path: /etc/aerospike/tls
+      - name: tls-ca
+        source:
+          secret:
+            secretName: aerospike-ca-cert
+        aerospike:
+          path: /etc/aerospike/tls/ca
+
+  podSpec:
+    aerospikeInitContainer:
+      resources:
+        limits:
+          cpu: "16"
+          memory: 32Gi
+        requests:
+          cpu: "1"
+          memory: 1Gi
+    metadata:
+      annotations:
+        example: annotation
+    multiPodPerHost: true
+    sidecars:
+      - name: exporter
+        image: aerospike/aerospike-prometheus-exporter:latest
+        ports:
+          - containerPort: 9145
+            name: exporter
+        env:
+          - name: "AS_AUTH_USER"
+            value: "admin"
+          - name: "AS_AUTH_PASSWORD"
+            value: "admin123"
+          - name: "AS_AUTH_MODE"
+            value: "internal"
+
+  rackConfig:
+    namespaces:
+      - test
+    racks:
+      - id: 1
+      - id: 2
+      - id: 3
+
+  aerospikeAccessControl:
+    users:
+      - name: admin
+        secretName: auth-secret
+        roles:
+          - sys-admin
+          - user-admin
+          - read-write
+          - sindex-admin
+
+  aerospikeConfig:
+    service:
+      feature-key-file: /etc/aerospike/secret/features.conf
+    security: {}
+    network:
+      service:
+        port: 3000
+        tls-port: 4333
+        tls-name: aerocluster
+      fabric:
+        port: 3001
+        tls-port: 3011
+        tls-name: aerocluster
+      heartbeat:
+        port: 3002
+        tls-port: 3012
+        tls-name: aerocluster
+      tls:
+        - name: aerocluster
+          cert-file: /etc/aerospike/tls/tls.crt
+          key-file: /etc/aerospike/tls/tls.key
+          ca-file: /etc/aerospike/tls/ca/ca.crt
+    namespaces:
+      - name: test
+        replication-factor: 2
+        nsup-period: 120
+        strong-consistency: true
+        storage-engine:
+          type: device
+          files:
+            - /opt/aerospike/test1.data
+          filesize: 1073741824

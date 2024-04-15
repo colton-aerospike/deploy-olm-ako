@@ -1,0 +1,190 @@
+apiVersion: asdb.aerospike.com/v1
+kind: AerospikeCluster
+metadata:
+  name: asdb-dev
+  namespace: aerospike
+
+spec:
+  size: 3
+  image: aerospike/aerospike-server-enterprise:6.3.0.5
+
+  podSpec:
+    aerospikeInitContainer:
+      resources:
+        limits:
+          cpu: "16"
+          memory: 32Gi
+        requests:
+          cpu: "1"
+          memory: 1Gi
+    #    tolerations:
+    # - key: "app"
+    #    operator: "Equal"
+    #    value: "aerospike"
+#        effect: "NoSchedule"
+#    nodeSelector:
+#      app: aerospike
+    multiPodPerHost: false
+    metadata:
+      annotations:
+        test: disableTHP
+        unknownState: April211117
+        adddebug: April301316
+        addnfs: Aug092023
+        operator: 3.0.0
+    sidecars:
+      - name: aerospike-prometheus-exporter
+        image: aerospike/aerospike-prometheus-exporter:latest
+        ports:
+          - containerPort: 9145
+            name: exporter
+        env:
+          - name: "AS_AUTH_USER"
+            value: "admin"
+          - name: "AS_AUTH_PASSWORD"
+            value: "admin123"
+          - name: "AS_AUTH_MODE"
+            value: "internal"
+  aerospikeAccessControl:
+    roles:
+      - name: quota
+        privileges:
+          - read-write
+        readQuota: 20000
+        writeQuota: 20000
+      - name: noquota
+        privileges:
+          - read-write
+    users:
+      - name: test
+        secretName: auth-secret
+        roles:
+          - quota
+          - data-admin
+          - sindex-admin
+      - name: admin
+        secretName: auth-secret
+        roles:
+          - sys-admin
+          - user-admin
+          - read-write
+      - name: colton
+        secretName: auth-secret
+        roles:
+          - noquota
+          - sindex-admin
+          - read-write
+          - read-write-udf
+          - udf-admin
+          - data-admin
+          - sys-admin
+          - user-admin
+
+  aerospikeConfig:
+    service:
+      feature-key-file: /etc/aerospike/secret/features.conf
+      #debug-allocations: all
+    security: 
+      enable-quotas: true
+    network:
+      service:
+        port: 3000
+      fabric:
+        port: 3001
+      heartbeat:
+        port: 3002
+    namespaces:
+      - name: test
+        memory-size: 4000000000
+        replication-factor: 2
+        nsup-period: 120
+        storage-engine:
+          type: device
+          #data-in-memory: true
+          #post-write-queue: 0
+          filesize: 460800000000
+          files:
+            - /mnt/test/test1.data
+            - /mnt/test/test2.data
+      - name: dsc
+        memory-size: 8000000000
+        replication-factor: 2
+        nsup-period: 120
+        storage-engine:
+          type: device
+          files:
+            - /opt/aerospike/nfs/dsc1.data
+            - /opt/aerospike/nfs/dsc2.data
+            - /opt/aerospike/nfs/dsc3.data
+          filesize: 10737418240
+            #          data-in-memory: true
+          direct-files: true
+      - name: aboftybot
+        memory-size: 8000000000
+        replication-factor: 2
+        nsup-period: 120
+        storage-engine:
+          type: device
+          files:
+            - /opt/aerospike/nfs/bar1.data
+            - /opt/aerospike/nfs/bar2.data
+            - /opt/aerospike/nfs/bar3.data
+            - /opt/aerospike/nfs/bar4.data
+            - /opt/aerospike/nfs/bar5.data
+            - /opt/aerospike/nfs/bar6.data
+          filesize: 10737418240
+            #          data-in-memory: true
+          direct-files: true
+
+  rackConfig:
+    namespaces:
+      - test
+      - aboftybot
+      - dsc
+    racks:
+      - id: 2
+        storage:
+          cleanupThreads: 10
+          filesystemVolumePolicy:
+            initMethod: deleteFiles
+            cascadeDelete: true
+          blockVolumePolicy:
+            cascadeDelete: true
+              #initMethod: dd
+          volumes:
+            - name: bar
+              aerospike:
+                path: /opt/aerospike/nfs/
+              source:
+                persistentVolume:
+                  storageClass: gp2
+                  volumeMode: Filesystem
+                  size: 100Gi
+            - name: test
+              aerospike:
+                path: /mnt/test/
+              source:
+                persistentVolume:
+                  storageClass: gp2
+                  volumeMode: Filesystem
+                  size: 45Gi
+            - name: aerospike
+              aerospike:
+                path: /opt/aerospike
+              source:
+                persistentVolume:
+                  storageClass: gp2
+                  volumeMode: Filesystem
+                  size: 1Gi
+            - name: aerospike-config-secret
+              source:
+                secret:
+                  secretName: aerospike-secret
+              aerospike:
+                path: /etc/aerospike/secret
+            - name: udfs
+              source:
+                configMap:
+                  name: udfs
+              aerospike:
+                path: /opt/aerospike/usr/udf/lua/
