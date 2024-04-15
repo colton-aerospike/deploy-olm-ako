@@ -146,6 +146,10 @@ function main {
 	parseArgs "$@" 
 	[ "$CLUSTER_NAME" = "" ] && exit_abnormal
 	[ "$K8S_VERSION" = "" ] && exit_abnormal
+	if [ ! -f /root/features.conf ]; then
+		echo "/root/features.conf is not found! Please ensure features.conf file exists and has proper permissions."
+		exit 3
+	fi
 	gaiakube "$K8S_VERSION" "$CLUSTER_NAME"
        	[ $? -ne 0 ] && echo "Failed to connect with gaiakube" && exit 5
 	[ $CLEANUP -eq 1 ] && cleanUp
