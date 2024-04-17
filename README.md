@@ -8,10 +8,9 @@ git clone https://github.com/colton-aerospike/deploy-olm-ako && cd deploy-olm-ak
 
 ## Usage
 ```bash
-Usage: ./setup_olm.sh -n CLUSTER_NAME -v K8S_VERSION [-o OLM_VERSION, -E] [ -R ]
+Usage: ./setup_olm.sh -f EKSCTL_YAML_FILE [-o OLM_VERSION, -E] [ -R ]
 
--n) EKS cluster name to attach to
--v) Kubernetes version to use when attaching via gaiakube
+-f) EKSCTL configuration yaml file
 -o) OLM version to install: (Default: v0.25.0)
 -A) Install and Configure Amazon cluster-autoscaler (Default: false)
 -E) Install OpenEBS Operator (Default: false)
@@ -19,17 +18,15 @@ Usage: ./setup_olm.sh -n CLUSTER_NAME -v K8S_VERSION [-o OLM_VERSION, -E] [ -R ]
 ```
 ## Basic Install
 ```bash
-./setup_olm.sh -n colton -v 1.27
+./setup_olm.sh -f /root/eks/basic.yaml
 ```
 
 ## Deploy OLM and OpenEBS, then configure Amazon cluster-autoscaler
 ```bash
-./setup_olm.sh -n colton -v 1.27 -E -A
+./setup_olm.sh -f /root/eks/basic.yaml -E -A
 ```
 
 ## Remove OLM installation
 ```bash
-./setup_olm.sh -n colton -v 1.27 -R
+./setup_olm.sh -f /root/eks/basic.yaml -R
 ``` 
-
-
