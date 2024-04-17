@@ -86,10 +86,9 @@ function configureAmazonAutoscaler {
 }
 
 function usage {
-        echo "Usage: $0 -n CLUSTER_NAME -v K8S_VERSION [-o OLM_VERSION, -E] [ -R ]"
-        echo ""
-        echo "-n) EKS cluster name to attach to"
-        echo "-v) Kubernetes version to use when attaching via gaiakube"
+	echo "Usage: $0 -f EKSCTL_YAML_FILE [-o OLM_VERSION] [-E] [-R]"
+	echo ""
+	echo "-f) EKSCTL configuration yaml file"
 	echo "-o) OLM version to install: (Default: v0.25.0)"
 	echo "-A) Install and Configure Amazon cluster-autoscaler (Default: false)"
 	echo "-E) Install OpenEBS Operator (Default: false)"
@@ -101,14 +100,11 @@ function exit_abnormal {
 }
 
 function parseArgs {
-	while getopts "n:v:o:ARE" options; do
-                case "${options}" in
-                n)
-                        CLUSTER_NAME="${OPTARG}" # set $NAME to specified value.
-                        ;;
-                v)
-                        K8S_VERSION="${OPTARG}"
-                        ;;
+	while getopts "f:o:ARE" options; do
+		case "${options}" in
+		f)
+			YAML_FILE="${OPTARG}" # set $NAME to specified value.
+			;;
 		o)	
 			OLM_VERSION="${OPTARG}"
 			;;
@@ -144,14 +140,19 @@ function cleanUp {
 
 function main {
 	parseArgs "$@" 
+	[ "$YAML_FILE" = "" ] && exit_abnormal
+	CLUSTER_NAME=$(eksctl get cluster -f ${YAML_FILE} -o json |jq -r '.[0].Name')
+	[ $? -ne 0 ] && exit_abnormal
 	[ "$CLUSTER_NAME" = "" ] && exit_abnormal
+	K8S_VERSION=$(eksctl get cluster -f ${YAML_FILE} -o json |jq -r '.[0].Version')
+	[ $? -ne 0 ] && exit_abnormal
 	[ "$K8S_VERSION" = "" ] && exit_abnormal
 	if [ ! -f /root/features.conf ]; then
 		echo "/root/features.conf is not found! Please ensure features.conf file exists and has proper permissions."
 		exit 3
 	fi
-	gaiakube "$K8S_VERSION" "$CLUSTER_NAME"
-       	[ $? -ne 0 ] && echo "Failed to connect with gaiakube" && exit 5
+	eksctl utils write-kubeconfig -f "${YAML_FILE}"
+    [ $? -ne 0 ] && echo "Failed to connect with eksctl" && exit 5
 	[ $CLEANUP -eq 1 ] && cleanUp
 	downloadOlm
 	installOperator
@@ -162,6 +163,7 @@ function main {
 	kubectl get all -n aerospike
 }
 
+YAML_FILE=""
 CLUSTER_NAME=
 K8S_VERSION=
 OLM_VERSION="v0.25.0"
@@ -170,4 +172,3 @@ INSTALL_OPENEBS=0
 AUTOSCALER=0
 
 main "$@"
-
