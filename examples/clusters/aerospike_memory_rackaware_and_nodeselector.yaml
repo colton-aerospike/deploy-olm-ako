@@ -1,0 +1,100 @@
+apiVersion: asdb.aerospike.com/v1
+kind: AerospikeCluster
+metadata:
+  name: asdb-dev
+  namespace: aerospike
+
+spec:
+  size: 4
+  image: aerospike/aerospike-server-enterprise:6.4.0.0
+
+  storage:
+    filesystemVolumePolicy:
+      initMethod: deleteFiles
+      cascadeDelete: true
+    blockVolumePolicy:
+      cascadeDelete: true
+    volumes:
+      - name: workdir
+        aerospike:
+          path: /opt/aerospike
+        source:
+          persistentVolume:
+            storageClass: gp2 
+            volumeMode: Filesystem 
+            size: 1Gi
+      - name: aerospike-config-secret
+        source:
+          secret:
+            secretName: aerospike-secret
+        aerospike:
+          path: /etc/aerospike/secret
+  podSpec:
+    multiPodPerHost: false
+    nodeSelector:
+	app: aerospike
+    aerospikeContainer:
+      resources:
+        requests: 
+          memory: "64Mi"
+          cpu: "50m"
+        limits:
+          memory: "1Gi"
+          cpu: "500m"
+    metadata:
+      annotations:
+        edit: me
+    sidecars:
+    - name: aerospike-prometheus-exporter
+      image: aerospike/aerospike-prometheus-exporter:latest
+      ports:
+        - containerPort: 9145
+          name: exporter
+      env:
+        - name: "AS_AUTH_USER"
+          value: "admin"
+        - name: "AS_AUTH_PASSWORD"
+          value: "admin123"
+        - name: "AS_AUTH_MODE"
+          value: "internal"
+  rackConfig:
+    rollingUpdateBatchSize: "100%"
+    namespaces:
+      - test
+      - bar
+    racks:
+      - id: 1
+	zone: ca-central-1a
+      - id: 2
+	zone: ca-central-1b
+  aerospikeAccessControl:
+    users:
+      - name: admin
+        secretName: auth-secret
+        roles:
+          - sys-admin
+          - user-admin
+          - read-write
+
+  aerospikeConfig:
+    service:
+      feature-key-file: /etc/aerospike/secret/features.conf
+    security: {}
+    network:
+      service:
+        port: 3000
+      fabric:
+        port: 3001
+      heartbeat:
+        port: 3002
+    namespaces:
+      - name: test
+        memory-size: 3000000000
+        replication-factor: 2
+        storage-engine:
+          type: memory
+      - name: bar
+        memory-size: 30000000000
+        replication-factor: 2
+        storage-engine:
+          type: memory
